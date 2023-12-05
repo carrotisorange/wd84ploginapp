@@ -1,8 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
-const expressSession = require('express-session');
-const expressValidator = require('express-validator');
+const session = require('express-session');
+const { check, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const mysql = require('mysql');
 const path = require('path')
@@ -28,9 +28,18 @@ app.use(bodyParser.urlencoded({ extended: false }))
 // parse application/json
 app.use(bodyParser.json())
 
+//session
+//configure the session
+app.use(session({
+    secret: uuidv4(),
+    resave: false,
+    saveUninitialized: true,
+    cookie: {secure:false}
+}));
+
 
 app.get('/signup', (req,res)=>{
-    res.render('signup');
+    res.render('signup',{ title : 'Sign Up'} );
 });
 
 app.post('/signup', (req, res)=>{
@@ -41,8 +50,55 @@ app.post('/signup', (req, res)=>{
         if(err){
             throw err;
         }else{
-            console.log(result);
-            res.send('new row has been inserted!');
+          res.redirect('/dashboard');
+        }
+    });
+});
+
+app.get('/dashboard', (req,res)=>{
+    if(req.session.user){
+        res.render('dashboard',{ title : 'Dashboard', user:req.session.user});
+    }else{
+        res.send(403);
+    }
+  
+});
+
+app.get('/login', (req, res)=>{
+    res.render('login', { title : 'Login'})
+});
+
+let credentials = {
+    'email': 'user@test.com',
+    'password': '1234567'
+}
+app.post('/authenticate', 
+ [ 
+    check('email').notEmpty(),
+    check('password').notEmpty()
+], 
+    (req, res)=>{
+
+    let email = req.body.email;
+    let password = req.body.password;
+
+    const result = validationResult(req);
+
+    if (result.isEmpty()) {
+        req.session.user = req.body.email;
+        res.redirect('dashboard');
+      }else{
+        res.render('login',{title:'Login',errors: 'email or password is missing' })
+      }
+});
+
+app.get('/logout', (req, res)=>{
+    req.session.destroy(function(err){
+        if(err){
+            console.log(err);
+            res.send(err);
+        }else{
+            res.redirect('/login');
         }
     });
 });
